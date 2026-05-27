@@ -1,4 +1,4 @@
-
+	
 
 ```datacorejsx
 const activeFile = dc.resolvePath("DATACORE QUERY BUILDER") || "_RESOURCES/DATACORE/_DONE/DATACORE QUERY BUILDER/DATACORE QUERY BUILDER";

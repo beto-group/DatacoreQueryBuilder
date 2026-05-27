@@ -929,16 +929,82 @@ VAULT SCHEMA CONTEXT:
     while (attempts < maxAttempts) {
       attempts++;
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`;
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: activeContents,
-            systemInstruction: { parts: [{ text: systemPrompt }] }
-          })
-        });
-        const data = await response.json();
+        // Dynamic Model Discovery to fetch only supported models on the user's key
+        let availableModels = [];
+        try {
+          const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}`;
+          const listRes = await fetch(listUrl);
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            if (listData.models) {
+              availableModels = listData.models
+                .filter(m => m.supportedGenerationMethods?.includes("generateContent"))
+                .map(m => m.name.replace("models/", ""));
+            }
+          }
+        } catch (listErr) {
+          console.warn("[Gemini Fallback] Failed to fetch dynamic models list:", listErr);
+        }
+
+        // Safe known fallback order if list is empty or fails
+        if (availableModels.length === 0) {
+          availableModels = ["gemini-3.1-flash", "gemini-3.0-flash", "gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-1.5-flash-latest"];
+        } else {
+          // Dynamic Sorter: extracts versions (e.g. 3.1, 3.0, 2.5, 1.5) and places highest first,
+          // prioritizing "flash" over "pro" to get the absolute fastest generation.
+          availableModels.sort((a, b) => {
+            const getVersion = (name) => {
+              const match = name.match(/gemini-(\d+(?:\.\d+)?)/);
+              return match ? parseFloat(match[1]) : 0;
+            };
+            const versionA = getVersion(a);
+            const versionB = getVersion(b);
+            if (versionA !== versionB) {
+              return versionB - versionA;
+            }
+            const isFlashA = a.includes("flash") || a.includes("lite");
+            const isFlashB = b.includes("flash") || b.includes("lite");
+            if (isFlashA && !isFlashB) return -1;
+            if (!isFlashA && isFlashB) return 1;
+            return a.localeCompare(b);
+          });
+        }
+
+
+        let response = null;
+        let data = null;
+        let lastError = null;
+
+        for (const modelName of availableModels) {
+          try {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`;
+            response = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: activeContents,
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+              })
+            });
+            data = await response.json();
+            if (response.ok && !data.error) {
+              lastError = null;
+              break;
+            } else {
+              const errMsg = data.error?.message || "HTTP " + response.status;
+              lastError = new Error(`Model ${modelName} failed: ${errMsg}`);
+              console.warn(`[Gemini Fallback] ${modelName} failed/quota exceeded. Trying next. Error: ${errMsg}`);
+            }
+          } catch (fetchErr) {
+            lastError = fetchErr;
+            console.warn(`[Gemini Fallback] Fetch error for ${modelName}:`, fetchErr);
+          }
+        }
+
+        if (lastError) {
+          throw lastError;
+        }
+
 
         // Log to debug panel
         const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data);
@@ -959,10 +1025,25 @@ VAULT SCHEMA CONTEXT:
           cleanedText = cleanedText.replace(/```json|```/g, "").trim();
         }
         
-        const parsed = JSON.parse(cleanedText);
+        let parsed = null;
+        try {
+          parsed = JSON.parse(cleanedText);
+        } catch (jsonErr) {
+          // Attempt highly resilient regex matching to extract the first valid JSON block
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[0].trim());
+            } catch (innerErr) {
+              console.error("[JSON Parser] Regex inner block parse failed:", innerErr);
+            }
+          }
+        }
+
         if (!parsed || !parsed.query) {
           throw new Error("Invalid response schema: " + rawText);
         }
+
 
         lastGeneratedQuery = parsed.query;
 
@@ -2898,6 +2979,38 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
                     {copilotHelperState.type && (
                       <div
                         className="dqb-helper-popup"
+                        onKeyDown={(ev) => {
+                          const target = ev.target;
+                          if (target && target.tagName === "BUTTON") {
+                            if (ev.key === "ArrowDown") {
+                              ev.preventDefault();
+                              const next = target.nextElementSibling;
+                              if (next && next.tagName === "BUTTON") {
+                                next.focus();
+                              }
+                            } else if (ev.key === "ArrowUp") {
+                              ev.preventDefault();
+                              const prev = target.previousElementSibling;
+                              if (prev && prev.tagName === "BUTTON") {
+                                prev.focus();
+                              } else {
+                                const container = ev.currentTarget.parentElement;
+                                const textarea = container ? container.querySelector("textarea") : null;
+                                if (textarea) {
+                                  textarea.focus();
+                                }
+                              }
+                            } else if (ev.key === "Escape") {
+                              ev.preventDefault();
+                              setCopilotHelperState({ type: null, searchTerm: "", startIndex: -1 });
+                              const container = ev.currentTarget.parentElement;
+                              const textarea = container ? container.querySelector("textarea") : null;
+                              if (textarea) {
+                                textarea.focus();
+                              }
+                            }
+                          }
+                        }}
                         style={{
                           position: "absolute",
                           bottom: "100%",
@@ -2911,6 +3024,7 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
                           boxShadow: "0 -4px 12px rgba(0,0,0,0.5)",
                         }}
                       >
+
                         {copilotHelperState.type === "main" && (
                           <MainSelectorHelper
                             onSelectCategory={handleSelectCopilotCategory}
@@ -2985,21 +3099,25 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
                         resize: "vertical"
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Tab" && copilotHelperState.type) {
-                          e.preventDefault();
-                          const parent = e.currentTarget.parentElement;
-                          const popup = parent ? parent.querySelector(".dqb-helper-popup") : null;
-                          const firstButton = popup ? popup.querySelector("button") : null;
-                          if (firstButton) {
-                            setTimeout(() => {
-                              firstButton.click();
-                            }, 0);
+                        if (copilotHelperState.type) {
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            setCopilotHelperState({ type: null, searchTerm: "", startIndex: -1 });
+                          } else if (e.key === "ArrowDown" || e.key === "Tab") {
+                            e.preventDefault();
+                            const parent = e.currentTarget.parentElement;
+                            const popup = parent ? parent.querySelector(".dqb-helper-popup") : null;
+                            const firstButton = popup ? popup.querySelector("button") : null;
+                            if (firstButton) {
+                              firstButton.focus();
+                            }
                           }
                         } else if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();
                           handleGenerateQuery();
                         }
                       }}
+
                     />
                     <button
                       onClick={handleGenerateQuery}

@@ -21,6 +21,12 @@ Generate a valid Datacore query string based on the user's natural language requ
    - **CRITICAL**: Do NOT use `!` or `not` on their own (e.g. `!($name == ...)` or `not (...)` are SYNTAX ERRORS). Always use `!not`.
    - **PREFER INEQUALITY**: For excluding values or extensions, ALWAYS prefer simple flat inequality operator `!=` (e.g. `$name != "README" and $extension != "webp"`) over complex negated groups.
 
+3. **Path Depth & Slashes (Depth Filtering)**:
+   - To limit results to a specific folder depth (e.g. main root or only one level down), use standard JavaScript split and check if the segment index is null (since `.length` property lookups fail in Datacore array evaluation):
+     - Only main root (max 4 segments, e.g. `_RESOURCES/DATACORE/_DONE/file.ext`): `$path.split("/")[4] == null`
+     - Main root or one level down (max 5 segments, e.g. `_RESOURCES/DATACORE/_DONE/Folder/file.ext`): `$path.split("/")[5] == null`
+     - Two levels deep or more: `$path.split("/")[5] != null`
+
 3. **Property Filtering & Valid Methods**:
    - Filter by metadata or custom frontmatter properties: `rating >= 8`, `status == "completed"`, `exists(due)`.
    - Built-in properties begin with a `$`: `$mtime >= date(today)`, `$completed = false`, `$path`, `$extension`, `$name`.
@@ -68,3 +74,25 @@ This section is updated dynamically by the agentic self-healing logic loops. The
 - **Incorrect Query**: `@file and path("_RESOURCES/DATACORE/_DONE") and !( ($name.istarts_with("README")) or ($name.istarts_with("LICENSE")) or ($name.istarts_with("CONTRIBUTION")) or ($extension == "webp") or ($extension == "gif") )`
 - **Error**: "-- PARSING FAILED -- Expected one of the following: '(', 'null', boolean, date, duration, file link, list, negated field, number, object, string, variable"
 - **Corrected Working Query**: `@file and path("_RESOURCES/DATACORE/_DONE") and $name != "README" and $name != "LICENSE" and $name != "CONTRIBUTION" and $extension != "webp" and $extension != "gif"`
+
+### Lesson: Filter path depth so only files under the main root or one level down are shown
+- **Request**: "ensure that no files inside 2 level deep gets mention soo only file that are under the main root or one level down show up please"
+- **Logic**: Slashes in `$path` indicate depth. The query path has 3 segments: `_RESOURCES/DATACORE/_DONE`. Therefore, files directly under it have 4 segments (`_RESOURCES/DATACORE/_DONE/file.ext`), and files one level down have 5 segments (`_RESOURCES/DATACORE/_DONE/Folder/file.ext`). To enforce max 5 segments under Datacore (which fails to evaluate array `.length`), check if the 6th segment (index 5) is null/undefined.
+- **Corrected Working Query**: `@file and path("_RESOURCES/DATACORE/_DONE") and $path.split("/")[5] == null and $name != "README" and $name != "LICENSE" and $name != "CONTRIBUTION" and $extension != "webp" and $extension != "gif"`
+
+
+
+### Lesson: remove all files 3 folder depth or more
+- **Request**: "remove all files 3 folder depth or more"
+- **Incorrect Query**: `@file and path("_RESOURCES/DATACORE/_DONE") and $name != "CONTRIBUTION" and $name != "LICENSE" and $name != "README" and $name != "METADATA" and $extension != "webp" and $extension != "webm" and $extension != "gif" and $path.split("/")[6] == null`
+- **Error**: "
+-- PARSING FAILED --------------------------------------------------
+
+> 1 | @file and path("_RESOURCES/DATACORE/_DONE") and $name != "CONTRIBUTION" and $name != "LICENSE" and $name != "README" and $name != "METADATA" and $extension != "webp" and $extension != "webm" and $extension != "gif" and $path.split("/")[6] == null
+    |                                                                                                                                                                                                                                                 ^
+
+Expected one of the following: 
+
+'(', 'null', boolean, date, duration, file link, list, negated field, number, object ('{ a: 1, b: 2 }'), string, variable
+"
+- **Corrected Working Query**: `@file and path("_RESOURCES/DATACORE/_DONE") and $name != "CONTRIBUTION" and $name != "LICENSE" and $name != "README" and $name != "METADATA" and $extension != "webp" and $extension != "webm" and $extension != "gif" and length($path.split("/")) <= 6`
