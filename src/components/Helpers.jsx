@@ -1,17 +1,35 @@
 const { useState, useEffect, useMemo } = dc;
 
+const getCachedData = (key, fetchFn, ttlMs = 30000) => {
+  window._dqb_cache = window._dqb_cache || {};
+  const cached = window._dqb_cache[key];
+  const now = Date.now();
+  if (cached && (now - cached.timestamp < ttlMs)) {
+    return cached.data;
+  }
+  const freshData = fetchFn();
+  window._dqb_cache[key] = {
+    timestamp: now,
+    data: freshData
+  };
+  return freshData;
+};
+
 function TagHelper({ searchTerm, onTagSelect }) {
   const [allTags, setAllTags] = useState(null);
   useEffect(() => {
     try {
-      const pages = dc.api.query("@page");
-      const tagSet = new Set();
-      for (const note of pages) {
-        for (const rawTag of note.$tags || []) {
-          tagSet.add(rawTag.replace(/^#/, ""));
+      const tags = getCachedData("tags", () => {
+        const pages = dc.api.query("@page");
+        const tagSet = new Set();
+        for (const note of pages) {
+          for (const rawTag of note.$tags || []) {
+            tagSet.add(rawTag.replace(/^#/, ""));
+          }
         }
-      }
-      setAllTags(Array.from(tagSet).sort());
+        return Array.from(tagSet).sort();
+      });
+      setAllTags(tags);
     } catch (e) {
       console.error("Datacore Explorer: Failed to fetch tags.", e);
       setAllTags([]);
@@ -94,22 +112,25 @@ function FolderHelper({ searchTerm, onFolderSelect }) {
   const [allFolders, setAllFolders] = useState(null);
   useEffect(() => {
     try {
-      const pages = dc.api.query("@page");
-      const folderSet = new Set();
-      for (const page of pages) {
-        const path = page.$path;
-        const parts = path.split("/");
-        let currentFolder = "";
-        // Recursively build and add every parent folder path
-        for (let i = 0; i < parts.length - 1; i++) {
-          currentFolder = currentFolder ? `${currentFolder}/${parts[i]}` : parts[i];
-          const hasFileExtension = /\.(md|txt|png|jpg|webp|gif|pdf|js|jsx|css|json)$/i.test(currentFolder);
-          if (!hasFileExtension) {
-            folderSet.add(currentFolder);
+      const folders = getCachedData("folders", () => {
+        const pages = dc.api.query("@page");
+        const folderSet = new Set();
+        for (const page of pages) {
+          const path = page.$path;
+          const parts = path.split("/");
+          let currentFolder = "";
+          // Recursively build and add every parent folder path
+          for (let i = 0; i < parts.length - 1; i++) {
+            currentFolder = currentFolder ? `${currentFolder}/${parts[i]}` : parts[i];
+            const hasFileExtension = /\.(md|txt|png|jpg|webp|gif|pdf|js|jsx|css|json)$/i.test(currentFolder);
+            if (!hasFileExtension) {
+              folderSet.add(currentFolder);
+            }
           }
         }
-      }
-      setAllFolders(Array.from(folderSet).sort());
+        return Array.from(folderSet).sort();
+      });
+      setAllFolders(folders);
     } catch (e) {
       console.error("Datacore Explorer: Failed to fetch folders.", e);
       setAllFolders([]);
@@ -200,8 +221,11 @@ function FileHelper({ searchTerm, onFileSelect }) {
   const [allFiles, setAllFiles] = useState(null);
   useEffect(() => {
     try {
-      const pages = dc.api.query("@page");
-      setAllFiles(pages.map((p) => p.$path).sort());
+      const files = getCachedData("files", () => {
+        const pages = dc.api.query("@page");
+        return pages.map((p) => p.$path).sort();
+      });
+      setAllFiles(files);
     } catch (e) {
       console.error("Datacore Explorer: Failed to fetch files.", e);
       setAllFiles([]);
@@ -314,30 +338,31 @@ function GenericPropertyHelper({ searchTerm, onPropertySelect }) {
   ];
   useEffect(() => {
     try {
-      const allItems = dc.api.query("@page OR @task");
-      const propertySet = new Set();
-      intrinsicFields.forEach((f) => propertySet.add(f));
-      const ignoredKeys = new Set(["$parent", "$blocks", "file"]);
-      for (const item of allItems) {
-        for (const key of Object.keys(item)) {
-          if (!ignoredKeys.has(key) && !key.startsWith("$"))
-            propertySet.add(key);
-        }
-        if (item.$frontmatter && typeof item.$frontmatter === "object") {
-          for (const key of Object.keys(item.$frontmatter)) {
-            if (!ignoredKeys.has(key)) propertySet.add(key);
+      const properties = getCachedData("properties", () => {
+        const allItems = dc.api.query("@page OR @task");
+        const propertySet = new Set();
+        intrinsicFields.forEach((f) => propertySet.add(f));
+        const ignoredKeys = new Set(["$parent", "$blocks", "file"]);
+        for (const item of allItems) {
+          for (const key of Object.keys(item)) {
+            if (!ignoredKeys.has(key) && !key.startsWith("$"))
+              propertySet.add(key);
+          }
+          if (item.$frontmatter && typeof item.$frontmatter === "object") {
+            for (const key of Object.keys(item.$frontmatter)) {
+              if (!ignoredKeys.has(key)) propertySet.add(key);
+            }
           }
         }
-      }
-      setAllProperties(
-        Array.from(propertySet).sort((a, b) => {
+        return Array.from(propertySet).sort((a, b) => {
           const aIntrinsic = a.startsWith("$");
           const bIntrinsic = b.startsWith("$");
           if (aIntrinsic && !bIntrinsic) return -1;
           if (!aIntrinsic && bIntrinsic) return 1;
           return a.localeCompare(b);
-        })
-      );
+        });
+      });
+      setAllProperties(properties);
     } catch (e) {
       console.error("Datacore Explorer: Failed to fetch properties.", e);
       setAllProperties([]);

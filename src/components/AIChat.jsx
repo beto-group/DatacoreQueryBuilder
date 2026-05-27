@@ -5,88 +5,106 @@ const { useState, useEffect, useRef, useMemo } = dc;
 const { AISettingsModal } = await dc.require(folderPath + "/src/components/AISettingsModal.jsx");
 const { TagHelper, FolderHelper, FileHelper, GenericPropertyHelper, MainSelectorHelper, PropertyOperatorHelper } = await dc.require(folderPath + "/src/components/Helpers.jsx");
 
+const getCachedData = (key, fetchFn, ttlMs = 30000) => {
+  window._dqb_cache = window._dqb_cache || {};
+  const cached = window._dqb_cache[key];
+  const now = Date.now();
+  if (cached && (now - cached.timestamp < ttlMs)) {
+    return cached.data;
+  }
+  const freshData = fetchFn();
+  window._dqb_cache[key] = {
+    timestamp: now,
+    data: freshData
+  };
+  return freshData;
+};
+
 function FieldValueHelper({ searchTerm, onValueSelect, fieldName, operator }) {
   const [allValues, setAllValues] = useState(null);
   const [debugInfo, setDebugInfo] = useState("");
   useEffect(() => {
     try {
-      const allItems = dc.api.query("@page OR @task OR @section OR @block");
-      const valueSet = new Set();
       let extractedField = fieldName;
       if (fieldName.startsWith('row["')) {
         const match = fieldName.match(/row\["([^"]+)"\]/);
         extractedField = match?.[1] || fieldName;
       }
-      const lookupFields = [fieldName];
-      if (!fieldName.startsWith("$")) lookupFields.push("$" + fieldName);
-      if (!fieldName.startsWith('row["'))
-        lookupFields.push(`row["${fieldName}"]`);
 
-      for (const item of allItems) {
-        let value = null;
-        try {
-          for (const lookup of lookupFields) {
-            if (lookup.startsWith('row["')) {
-              const match = lookup.match(/row\["([^"]+)"\]/);
-              const prop = match?.[1] || lookup;
-              value = item[prop];
-            } else if (lookup.startsWith("$")) {
-              value = item[lookup];
-            } else {
-              value = item[lookup];
+      const valuesArray = getCachedData("values_" + extractedField, () => {
+        const allItems = dc.api.query("@page OR @task OR @section OR @block");
+        const valueSet = new Set();
+        const lookupFields = [fieldName];
+        if (!fieldName.startsWith("$")) lookupFields.push("$" + fieldName);
+        if (!fieldName.startsWith('row["'))
+          lookupFields.push(`row["${fieldName}"]`);
+
+        for (const item of allItems) {
+          let value = null;
+          try {
+            for (const lookup of lookupFields) {
+              if (lookup.startsWith('row["')) {
+                const match = lookup.match(/row\["([^"]+)"\]/);
+                const prop = match?.[1] || lookup;
+                value = item[prop];
+              } else if (lookup.startsWith("$")) {
+                value = item[lookup];
+              } else {
+                value = item[lookup];
+              }
+              if (value !== null && value !== undefined) {
+                break;
+              }
             }
+            
+            if (value === null || value === undefined) {
+              if (item.$frontmatter) {
+                value = item.$frontmatter[extractedField] || item.$frontmatter[extractedField.toLowerCase()];
+              }
+              if ((value === null || value === undefined) && item.frontmatter) {
+                value = item.frontmatter[extractedField] || item.frontmatter[extractedField.toLowerCase()];
+              }
+            }
+
+            if (value && typeof value === "object" && value !== null) {
+              if ("value" in value && "key" in value) {
+                value = value.value;
+              }
+            }
+
             if (value !== null && value !== undefined) {
-              break;
+              if (Array.isArray(value)) {
+                value.forEach((v) => {
+                  let strVal = String(v).replace(/^#/, "");
+                  if (typeof v === "object" && v.$path) strVal = v.$path;
+                  else if (v instanceof Date) strVal = v.toISOString();
+                  if (strVal && strVal !== "[object Object]")
+                    valueSet.add(strVal);
+                });
+              } else if (typeof value === "string") {
+                const cleaned = value.replace(/^#/, "");
+                if (cleaned) valueSet.add(cleaned);
+              } else if (
+                typeof value === "number" ||
+                typeof value === "boolean"
+              ) {
+                valueSet.add(String(value));
+              } else if (value instanceof Date) {
+                valueSet.add(value.toISOString());
+              } else if (value && typeof value === "object") {
+                if (value.$path) valueSet.add(value.$path);
+                else if (value.toISOString) valueSet.add(value.toISOString());
+                else if (value.toString && value.toString() !== "[object Object]")
+                  valueSet.add(value.toString());
+              }
             }
+          } catch (itemErr) {
+            // Silent catch
           }
-          
-          if (value === null || value === undefined) {
-            if (item.$frontmatter) {
-              value = item.$frontmatter[extractedField] || item.$frontmatter[extractedField.toLowerCase()];
-            }
-            if ((value === null || value === undefined) && item.frontmatter) {
-              value = item.frontmatter[extractedField] || item.frontmatter[extractedField.toLowerCase()];
-            }
-          }
-
-          if (value && typeof value === "object" && value !== null) {
-            if ("value" in value && "key" in value) {
-              value = value.value;
-            }
-          }
-
-          if (value !== null && value !== undefined) {
-            if (Array.isArray(value)) {
-              value.forEach((v) => {
-                let strVal = String(v).replace(/^#/, "");
-                if (typeof v === "object" && v.$path) strVal = v.$path;
-                else if (v instanceof Date) strVal = v.toISOString();
-                if (strVal && strVal !== "[object Object]")
-                  valueSet.add(strVal);
-              });
-            } else if (typeof value === "string") {
-              const cleaned = value.replace(/^#/, "");
-              if (cleaned) valueSet.add(cleaned);
-            } else if (
-              typeof value === "number" ||
-              typeof value === "boolean"
-            ) {
-              valueSet.add(String(value));
-            } else if (value instanceof Date) {
-              valueSet.add(value.toISOString());
-            } else if (value && typeof value === "object") {
-              if (value.$path) valueSet.add(value.$path);
-              else if (value.toISOString) valueSet.add(value.toISOString());
-              else if (value.toString && value.toString() !== "[object Object]")
-                valueSet.add(value.toString());
-            }
-          }
-        } catch (itemErr) {
-          // Silent catch
         }
-      }
+        return Array.from(valueSet).sort().slice(0, 100);
+      });
 
-      const valuesArray = Array.from(valueSet).sort().slice(0, 100);
       const isDateField = ["$ctime", "$mtime", "ctime", "mtime"].includes(
         extractedField
       );
@@ -94,7 +112,7 @@ function FieldValueHelper({ searchTerm, onValueSelect, fieldName, operator }) {
         ? " [WARNING] Dates: use >, <, == not .contains()"
         : "";
       setDebugInfo(
-        `Field: ${extractedField} | Items: ${allItems.length} | Values: ${valuesArray.length}${dateHint}`
+        `Field: ${extractedField} | Values: ${valuesArray.length}${dateHint}`
       );
       setAllValues(valuesArray);
     } catch (e) {

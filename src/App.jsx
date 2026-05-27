@@ -1199,7 +1199,7 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
         setQueryTiming({ ms: elapsed.toFixed(2), count: 0, error: e, query: queryToRun });
       }
       setLoading(false);
-    }, 250);
+    }, 600);
     return () => clearTimeout(handler);
   }, [inputValue]);
 
