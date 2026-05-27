@@ -1061,6 +1061,7 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
         
         // Wait 1.5 seconds before retrying on API / transient error
         await new Promise(resolve => setTimeout(resolve, 1500));
+      }
     }
   };
 
