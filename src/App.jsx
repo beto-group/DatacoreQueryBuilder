@@ -516,6 +516,7 @@ function DatacoreQueryExplorer() {
 
   // --- Gemini AI Assistant States ---
   const [aiTermsAccepted, setAiTermsAccepted] = useState(() => localStorage.getItem("datacore-ai-consent-v2") === "true");
+  const [excludedFoldersInput, setExcludedFoldersInput] = useState(() => localStorage.getItem("datacore-ai-exclude-folders") || "");
   const [aiDebugInfo, setAiDebugInfo] = useState(null);
   const [geminiKey, setGeminiKey] = useState("");
   const [hasKeyInKeychain, setHasKeyInKeychain] = useState(false);
