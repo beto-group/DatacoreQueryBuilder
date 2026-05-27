@@ -444,6 +444,9 @@ function AIQueryAssistant({
     }, 50);
   };
 
+  const [aiConsentGranted, setAiConsentGranted] = useState(() => {
+    return localStorage.getItem("datacore-ai-consent") === "true";
+  });
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -1146,8 +1149,147 @@ $path, $ctime, $mtime, $name, $tags, $title, $type, $completed, $status, $size, 
     },
   };
 
+  const handleGrantConsent = () => {
+    localStorage.setItem("datacore-ai-consent", "true");
+    setAiConsentGranted(true);
+  };
+
+  if (!aiConsentGranted) {
+    const handleCancel = () => {
+      if (onClose) onClose();
+    };
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          background: "#050508",
+          color: "#fff",
+          padding: "24px 16px",
+          justifyContent: "center",
+          alignItems: "center",
+          fontFamily: "var(--font-interface, sans-serif)",
+          position: "relative",
+          textAlign: "center"
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "16px"
+          }}
+        >
+          <button
+            onClick={handleCancel}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#666",
+              fontSize: "20px",
+              cursor: "pointer",
+              transition: "color 0.2s"
+            }}
+            onMouseOver={e => e.currentTarget.style.color = "#fff"}
+            onMouseOut={e => e.currentTarget.style.color = "#666"}
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ marginBottom: "20px" }}>
+          <dc.Icon icon="sparkles" style={{ fontSize: "42px", color: "#9b87f5" }} />
+        </div>
+
+        <h3 style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "750", color: "#fff", letterSpacing: "-0.01em" }}>
+          Enable Vault AI Assistant
+        </h3>
+        
+        <p style={{ margin: "0 0 20px 0", fontSize: "11px", color: "#9090b0", lineHeight: "1.5", maxWidth: "280px" }}>
+          To build customized, context-aware queries tailored specifically for your files, tags, and properties, the Copilot needs access to your vault's structural index.
+        </p>
+
+        <div
+          style={{
+            background: "rgba(155,135,245,0.04)",
+            border: "1px solid rgba(155,135,245,0.12)",
+            borderRadius: "6px",
+            padding: "12px 14px",
+            textAlign: "left",
+            width: "100%",
+            maxWidth: "280px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            marginBottom: "24px"
+          }}
+        >
+          <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+            <dc.Icon icon="shield" style={{ fontSize: "12px", color: "#9b87f5", marginTop: "2px", flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: "10.5px", fontWeight: "bold", color: "#fff" }}>Privacy First</div>
+              <div style={{ fontSize: "9.5px", color: "#7a7a9a", marginTop: "2px" }}>The assistant only indexes metadata names (tags list, folders, field keys). It **never** reads, uploads, or sends actual note content or private text.</div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+            <dc.Icon icon="database" style={{ fontSize: "12px", color: "#9b87f5", marginTop: "2px", flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: "10.5px", fontWeight: "bold", color: "#fff" }}>Context Aware Querying</div>
+              <div style={{ fontSize: "9.5px", color: "#7a7a9a", marginTop: "2px" }}>Indexes custom tags, folder hierarchies, and properties so they appear instantly in autocomplete selectors and AI prompts.</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%", maxWidth: "280px" }}>
+          <button
+            onClick={handleGrantConsent}
+            style={{
+              padding: "10px 16px",
+              backgroundColor: "#9b87f5",
+              color: "#050508",
+              border: "none",
+              borderRadius: "6px",
+              fontWeight: "750",
+              fontSize: "11px",
+              cursor: "pointer",
+              transition: "all 0.2s",
+              boxShadow: "0 4px 12px rgba(155,135,245,0.2)"
+            }}
+            onMouseOver={e => e.currentTarget.style.transform = "translateY(-1px)"}
+            onMouseOut={e => e.currentTarget.style.transform = "none"}
+          >
+            Allow Access & Enable AI
+          </button>
+          
+          <button
+            onClick={handleCancel}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: "transparent",
+              color: "#666680",
+              border: "none",
+              borderRadius: "6px",
+              fontWeight: "bold",
+              fontSize: "10px",
+              cursor: "pointer",
+              transition: "color 0.2s"
+            }}
+            onMouseOver={e => e.currentTarget.style.color = "#999"}
+            onMouseOut={e => e.currentTarget.style.color = "#666680"}
+          >
+            Not Now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // When in drawer mode, render without overlay
   if (isDrawerMode) {
+
     return (
       <div
         style={{
