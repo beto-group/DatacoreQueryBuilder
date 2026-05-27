@@ -98,13 +98,14 @@ function FolderHelper({ searchTerm, onFolderSelect }) {
       const folderSet = new Set();
       for (const page of pages) {
         const path = page.$path;
-        const lastSlashIndex = path.lastIndexOf("/");
-        if (lastSlashIndex > -1) {
-          const folderPath = path.substring(0, lastSlashIndex);
-          // Safely ensure no file extension names are added as folders
-          const hasFileExtension = /\.(md|txt|png|jpg|webp|gif|pdf|js|jsx|css|json)$/i.test(folderPath);
+        const parts = path.split("/");
+        let currentFolder = "";
+        // Recursively build and add every parent folder path
+        for (let i = 0; i < parts.length - 1; i++) {
+          currentFolder = currentFolder ? `${currentFolder}/${parts[i]}` : parts[i];
+          const hasFileExtension = /\.(md|txt|png|jpg|webp|gif|pdf|js|jsx|css|json)$/i.test(currentFolder);
           if (!hasFileExtension) {
-            folderSet.add(folderPath);
+            folderSet.add(currentFolder);
           }
         }
       }
