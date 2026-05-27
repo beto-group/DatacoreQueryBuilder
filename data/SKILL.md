@@ -14,14 +14,17 @@ Generate a valid Datacore query string based on the user's natural language requ
    - `@section`: Heading blocks/sections of markdown notes.
    - `@block`: Standard paragraphs, lists, or custom block elements.
 
-2. **Logical Connectives**: Combine expressions using logic:
+2. **Logical Connectives & Negation**: Combine expressions using logic:
    - `and`: Both conditions must be met (e.g., `@page and #active`).
    - `or`: Either condition must be met (e.g., `#work or #personal`).
-   - `!not`: Negation of a condition (e.g., `@page and !exists(status)`).
+   - `!not`: Unary negation of a condition (e.g., `@page and !not exists(status)`).
+   - **CRITICAL**: Do NOT use `!` or `not` on their own (e.g. `!($name == ...)` or `not (...)` are SYNTAX ERRORS). Always use `!not`.
+   - **PREFER INEQUALITY**: For excluding values or extensions, ALWAYS prefer simple flat inequality operator `!=` (e.g. `$name != "README" and $extension != "webp"`) over complex negated groups.
 
-3. **Property Filtering**:
+3. **Property Filtering & Valid Methods**:
    - Filter by metadata or custom frontmatter properties: `rating >= 8`, `status == "completed"`, `exists(due)`.
-   - Built-in properties begin with a `$`: `$mtime >= date(today)`, `$completed = false`, `$path`.
+   - Built-in properties begin with a `$`: `$mtime >= date(today)`, `$completed = false`, `$path`, `$extension`, `$name`.
+   - **CRITICAL**: Datacore does NOT support string functions like `.istarts_with()`, `.ends_with()`, `.starts_with()`. Doing so will cause severe syntax compilation crashes. If you want to exclude names or files starting with or matching strings, use simple comparison operators: `$name != "README"`.
 
 4. **Functions**:
    - `path("folder")`: Check if a file resides inside a specific directory.
@@ -59,3 +62,9 @@ Generate a valid Datacore query string based on the user's natural language requ
 
 ## Learned Lessons & Corrections
 This section is updated dynamically by the agentic self-healing logic loops. The copilot reads these past mistakes and corrected versions to continuously self-improve.
+
+### Lesson: Filter out files starting with README, LICENSE, CONTRIBUTION or webp/gif
+- **Request**: "filter out all README , LICENSE, CONTRIBUTION and file ending in .webp or .gif inside _RESOURCES/DATACORE/_DONE"
+- **Incorrect Query**: `@file and path("_RESOURCES/DATACORE/_DONE") and !( ($name.istarts_with("README")) or ($name.istarts_with("LICENSE")) or ($name.istarts_with("CONTRIBUTION")) or ($extension == "webp") or ($extension == "gif") )`
+- **Error**: "-- PARSING FAILED -- Expected one of the following: '(', 'null', boolean, date, duration, file link, list, negated field, number, object, string, variable"
+- **Corrected Working Query**: `@file and path("_RESOURCES/DATACORE/_DONE") and $name != "README" and $name != "LICENSE" and $name != "CONTRIBUTION" and $extension != "webp" and $extension != "gif"`
