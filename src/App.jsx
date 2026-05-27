@@ -1061,42 +1061,6 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
         
         // Wait 1.5 seconds before retrying on API / transient error
         await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    }
-  };  }
-          
-          // Re-prompt with error payload
-          currentPrompt = `You previously generated the Datacore query: "${lastGeneratedQuery}"
-However, executing this query returned the syntax error: "${queryRunError.message}"
-
-Please analyze this error carefully and output a corrected, valid Datacore query string inside the JSON block: {"query": "CORRECTED_QUERY_STRING"}. Do not make the same mistake.`;
-        }
-
-      } catch (e) {
-        if (attempts >= maxAttempts) {
-          setAiDebugInfo(prev => ({
-            ...prev,
-            status: "FAILED",
-            response: prev ? prev.response + "\n\nError: " + e.message : e.message
-          }));
-
-          const failText = `❌ **Query Generation Failed** after ${maxAttempts} healing attempts.
-* **Error**: "${e.message}"
-${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}`;
-
-          setAiMessages(prev => [
-            ...prev,
-            {
-              role: "assistant",
-              content: failText
-            }
-          ]);
-
-          setAiError("AI Query generation failed: " + e.message);
-          setGenerating(false);
-          return;
-        }
-      }
     }
   };
 
