@@ -894,21 +894,37 @@ Use AND/OR/!not for logic.`;
     const metadata = getVaultMetadata();
     const skillPrompt = await getSkillPrompt();
 
-    let currentPrompt = `${skillPrompt}
+    const systemPrompt = `${skillPrompt}
 
 VAULT SCHEMA CONTEXT:
 - Active Tags in vault: ${metadata.tags.map(t => "#" + t).join(", ") || "None"}
 - Active Folders in vault: ${metadata.folders.map(f => `"${f}"`).join(", ") || "None"}
-- Active Custom Properties in vault: ${metadata.fields.join(", ") || "None"}
+- Active Custom Properties in vault: ${metadata.fields.join(", ") || "None"}`;
 
-USER REQUEST:
-Generate a Datacore query for the natural language request: "${userPrompt}"`;
+    // Filter out the initial welcome message from history to prevent cluttering context
+    const cleanHistory = aiMessages.filter(
+      msg => !msg.content.includes("I see you're working on this query") && !msg.content.includes("Hi! I am your Datacore Query Copilot")
+    );
+
+    const baseContents = cleanHistory.map(msg => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.content.includes("successfully generated") || msg.content.includes("self-healing successful")
+        ? JSON.stringify({ query: msg.query || "" })
+        : msg.content
+      }]
+    }));
+
+    baseContents.push({
+      role: "user",
+      parts: [{ text: userPrompt }]
+    });
 
     let attempts = 0;
     const maxAttempts = 3;
     let lastGeneratedQuery = "";
     let failedQueryOnAttempt = "";
     let queryRunErrorMsg = "";
+    let activeContents = [...baseContents];
 
     while (attempts < maxAttempts) {
       attempts++;
@@ -918,7 +934,8 @@ Generate a Datacore query for the natural language request: "${userPrompt}"`;
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: currentPrompt }] }]
+            contents: activeContents,
+            systemInstruction: { parts: [{ text: systemPrompt }] }
           })
         });
         const data = await response.json();
@@ -926,7 +943,7 @@ Generate a Datacore query for the natural language request: "${userPrompt}"`;
         // Log to debug panel
         const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(data);
         setAiDebugInfo({
-          prompt: currentPrompt,
+          prompt: JSON.stringify(activeContents),
           response: responseText,
           attempts: attempts,
           status: data.error ? "FAILED" : "COMPILING"
@@ -954,18 +971,15 @@ Generate a Datacore query for the natural language request: "${userPrompt}"`;
           dc.api.query(lastGeneratedQuery);
           
           // Successful execution run!
-          // If we had a prior failure, save this correction in the local learning log!
           if (attempts > 1 && failedQueryOnAttempt && queryRunErrorMsg) {
             await saveLearnedLesson(userPrompt, failedQueryOnAttempt, queryRunErrorMsg, lastGeneratedQuery);
           }
           
-          // Log final successful compile status to debug panel
           setAiDebugInfo(prev => ({
             ...prev,
             status: "SUCCESS"
           }));
 
-          // Add conversational assistant response to the chat log
           let aiText = `I've successfully generated the query for you! Below is the code:
 
 \`\`\`datacore
@@ -1006,6 +1020,50 @@ This correction lesson has also been recorded directly inside \`SKILL.md\` so I 
           if (attempts >= maxAttempts) {
             throw new Error(`Datacore syntax error: ${queryRunError.message}`);
           }
+          
+          // Append the self-healing prompts in active conversation history
+          activeContents.push({
+            role: "model",
+            parts: [{ text: JSON.stringify({ query: lastGeneratedQuery }) }]
+          });
+          activeContents.push({
+            role: "user",
+            parts: [{ text: `Executing that query returned this syntax error: "${queryRunError.message}"
+
+Please analyze this error carefully and output a corrected, valid Datacore query string inside the JSON block: {"query": "CORRECTED_QUERY_STRING"}. Do not make the same mistake.` }]
+          });
+        }
+
+      } catch (e) {
+        if (attempts >= maxAttempts) {
+          setAiDebugInfo(prev => ({
+            ...prev,
+            status: "FAILED",
+            response: prev ? prev.response + "\n\nError: " + e.message : e.message
+          }));
+
+          const failText = `❌ **Query Generation Failed** after ${maxAttempts} healing attempts.
+* **Error**: "${e.message}"
+${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}`;
+
+          setAiMessages(prev => [
+            ...prev,
+            {
+              role: "assistant",
+              content: failText
+            }
+          ]);
+
+          setAiError("AI Query generation failed: " + e.message);
+          setGenerating(false);
+          return;
+        }
+        
+        // Wait 1.5 seconds before retrying on API / transient error
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
+  };  }
           
           // Re-prompt with error payload
           currentPrompt = `You previously generated the Datacore query: "${lastGeneratedQuery}"
