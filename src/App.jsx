@@ -2467,7 +2467,7 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
             </div>
 
             {/* RIGHT COLUMN: Quick Start / Examples library / Cheatsheet / Debug panel */}
-            <div style={{ width: "420px", minWidth: "320px", display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div style={{ width: "420px", minWidth: "320px", display: "flex", flexDirection: "column", gap: "16px", maxHeight: "490px", overflowY: "auto", paddingRight: "4px" }}>
               {/* Quick Start (shown inside right panel by default when not browsing library/cheatsheet/debug) */}
               {!showExamplesLibrary && !showCheatsheet && !showDebugPanel && (
                 <div style={styles.card}>
