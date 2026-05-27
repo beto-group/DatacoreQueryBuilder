@@ -731,7 +731,15 @@ function DatacoreQueryExplorer() {
       const folderSet = new Set();
       const fieldSet = new Set();
 
+      // Load user excluded folders from localStorage
+      const localExclusions = localStorage.getItem("datacore-ai-exclude-folders") || "";
+      const excludedFoldersList = localExclusions
+        .split(",")
+        .map(f => f.trim().toLowerCase())
+        .filter(Boolean);
+
       for (const note of pages) {
+
         if (note.$tags) {
           for (const t of note.$tags) {
             tagSet.add(t.replace(/^#/, ""));
@@ -748,7 +756,8 @@ function DatacoreQueryExplorer() {
                 !folder.toLowerCase().includes("node_modules") && 
                 !folder.toLowerCase().includes("betoskills") && 
                 !folder.includes("_RESOURCES") && 
-                !folder.includes("_DONE")) {
+                !folder.includes("_DONE") &&
+                !excludedFoldersList.some(ex => folder.toLowerCase().includes(ex))) {
               folderSet.add(folder);
             }
           }
@@ -2909,6 +2918,34 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
                     </button>
                   </div>
                 )}
+
+                {/* Custom Folder Exclusions Setting */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", background: "rgba(255,255,255,0.01)", padding: "10px", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.03)" }}>
+                  <div style={{ fontSize: "10px", color: "#9090b0", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <dc.Icon icon="folder" style={{ fontSize: "11px", color: "#9b87f5" }} />
+                    Exclude Folders (comma-separated):
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="e.g. SecretNotes, Private/Journals"
+                    value={excludedFoldersInput}
+                    onChange={(e) => {
+                      localStorage.setItem("datacore-ai-exclude-folders", e.target.value);
+                      setExcludedFoldersInput(e.target.value);
+                    }}
+                    style={{
+                      width: "100%",
+                      background: "#08080d",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      padding: "5px 8px",
+                      fontSize: "10.5px",
+                      outline: "none"
+                    }}
+                  />
+                </div>
+
 
                 {/* Chat Message History */}
                 <div style={{
