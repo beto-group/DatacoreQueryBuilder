@@ -94,7 +94,8 @@ The package exposes the following modular files:
 
 ## Previews
 
-| Query Interface | Live Results Explorer |
-| :---: | :---: |
-| ![preview1](assets/datacore_query_builder_1.webp) | ![preview2](assets/datacore_query_builder_2.webp) |
+<div align="center">
+  <img src="assets/datacore_query_builder_1.webp" alt="Datacore Query Builder Dashboard Preview" width="100%">
+</div>
+
 
