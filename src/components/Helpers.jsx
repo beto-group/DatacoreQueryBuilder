@@ -99,8 +99,14 @@ function FolderHelper({ searchTerm, onFolderSelect }) {
       for (const page of pages) {
         const path = page.$path;
         const lastSlashIndex = path.lastIndexOf("/");
-        if (lastSlashIndex > -1)
-          folderSet.add(path.substring(0, lastSlashIndex));
+        if (lastSlashIndex > -1) {
+          const folderPath = path.substring(0, lastSlashIndex);
+          // Safely ensure no file extension names are added as folders
+          const hasFileExtension = /\.(md|txt|png|jpg|webp|gif|pdf|js|jsx|css|json)$/i.test(folderPath);
+          if (!hasFileExtension) {
+            folderSet.add(folderPath);
+          }
+        }
       }
       setAllFolders(Array.from(folderSet).sort());
     } catch (e) {
@@ -112,9 +118,16 @@ function FolderHelper({ searchTerm, onFolderSelect }) {
   const filteredFolders = useMemo(() => {
     if (allFolders === null) return null;
     if (!searchTerm) return allFolders;
-    return allFolders.filter((folder) =>
-      folder.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const lowerSearch = searchTerm.toLowerCase();
+    return allFolders
+      .filter((folder) => folder.toLowerCase().includes(lowerSearch))
+      .sort((a, b) => {
+        // Prioritize base/parent folders by sorting shortest path length first
+        if (a.length !== b.length) {
+          return a.length - b.length;
+        }
+        return a.localeCompare(b);
+      });
   }, [allFolders, searchTerm]);
   const styles = {
     container: {
