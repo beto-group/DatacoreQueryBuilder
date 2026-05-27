@@ -515,7 +515,7 @@ function DatacoreQueryExplorer() {
   const [queryTiming, setQueryTiming] = useState(null);
 
   // --- Gemini AI Assistant States ---
-  const [aiTermsAccepted, setAiTermsAccepted] = useState(() => localStorage.getItem("datacore-ai-terms-accepted") === "true");
+  const [aiTermsAccepted, setAiTermsAccepted] = useState(() => localStorage.getItem("datacore-ai-consent-v2") === "true");
   const [aiDebugInfo, setAiDebugInfo] = useState(null);
   const [geminiKey, setGeminiKey] = useState("");
   const [hasKeyInKeychain, setHasKeyInKeychain] = useState(false);
@@ -2786,11 +2786,11 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
               </button>
             </div>
 
-            {!aiTermsAccepted ? (
+             {!aiTermsAccepted ? (
               <div style={{
                 padding: "16px",
-                backgroundColor: "rgba(155,135,245,0.02)",
-                border: "1px dashed rgba(155,135,245,0.15)",
+                backgroundColor: "rgba(155,135,245,0.04)",
+                border: "1px solid rgba(155,135,245,0.12)",
                 borderRadius: "8px",
                 display: "flex",
                 flexDirection: "column",
@@ -2798,30 +2798,48 @@ ${failedQueryOnAttempt ? `* **Failed Query**: \`${failedQueryOnAttempt}\`` : ""}
                 alignItems: "center",
                 textAlign: "center"
               }}>
-                <dc.Icon icon="shield-alert" style={{ fontSize: "24px", color: "#9b87f5" }} />
-                <div style={{ fontSize: "12px", fontWeight: "700", color: "#ffffff" }}>Privacy & Data Notice</div>
-                <div style={{ fontSize: "10px", color: "#9090b0", lineHeight: "1.6" }}>
-                  Using Gemini Copilot will send structural metadata (tags, folders, custom properties) to the Google Gemini API. No note content or private text is sent.
+                <dc.Icon icon="sparkles" style={{ fontSize: "28px", color: "#9b87f5" }} />
+                <div style={{ fontSize: "13px", fontWeight: "750", color: "#ffffff", letterSpacing: "-0.01em" }}>Enable Vault AI Assistant</div>
+                <div style={{ fontSize: "10px", color: "#9090b0", lineHeight: "1.5" }}>
+                  To build customized, context-aware queries tailored specifically for your files, tags, and properties, the Copilot needs access to your vault's structural index.
                 </div>
+                
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  textAlign: "left",
+                  width: "100%",
+                  padding: "8px",
+                  background: "rgba(255,255,255,0.01)",
+                  borderRadius: "6px"
+                }}>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "flex-start" }}>
+                    <dc.Icon icon="shield" style={{ fontSize: "10px", color: "#9b87f5", marginTop: "2px", flexShrink: 0 }} />
+                    <span style={{ fontSize: "9px", color: "#7a7a9a" }}><strong>Privacy First</strong>: The assistant only indexes metadata names. It <strong>never</strong> reads, uploads, or sends actual note content or private text.</span>
+                  </div>
+                </div>
+
                 <button
                   onClick={() => {
-                    localStorage.setItem("datacore-ai-terms-accepted", "true");
+                    localStorage.setItem("datacore-ai-consent-v2", "true");
                     setAiTermsAccepted(true);
                   }}
                   style={{
-                    marginTop: "6px",
-                    padding: "8px 20px",
+                    marginTop: "4px",
+                    width: "100%",
+                    padding: "8px 16px",
                     backgroundColor: "#9b87f5",
-                    color: "#09090f",
+                    color: "#050508",
                     border: "none",
                     borderRadius: "6px",
-                    fontWeight: "700",
+                    fontWeight: "750",
                     fontSize: "11px",
                     cursor: "pointer",
-                    transition: "all 0.15s"
+                    transition: "all 0.2s"
                   }}
                 >
-                  Accept & Enable AI
+                  Allow Access & Enable AI
                 </button>
               </div>
             ) : (
